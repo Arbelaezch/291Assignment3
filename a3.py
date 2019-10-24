@@ -7,7 +7,8 @@ connection = None
 cursor = None
 
 def close_connection():
-	con.close()
+	global connection
+	connection.close()
 
 def connect(path):
 	global connection, cursor
