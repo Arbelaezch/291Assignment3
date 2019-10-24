@@ -53,11 +53,11 @@ def login_screen():
 			print('Unknown action :(')
 			os.system('cls' if os.name=='nt' else 'clear')
 	return
-		
-
+	
+	
 def agent_menu(uid, password):
 	while True:
-		print("Welcome "+ uid +" "+ password +"!")
+		print("Welcome, Agent "+ uid +" "+ password +"!")
 		print("What would you like to do?")
 		print("1 - Register a birth\n2 - Register a marriage\n3 - Renew a vehicle registration\n4 - Process a bill of sale\n5 - Process a payment\n6 - Get a driver abstract")
 		print("L - Logout")
@@ -76,16 +76,26 @@ def agent_menu(uid, password):
 			get_driver()
 		elif (action == 'L') or (action == 'l'):
 			print("Good byeeee")
-			time.sleep(2)
+			time.sleep(1)
 			break
 		else:
 			print("Invalid entry!\n Please try again.")
 			os.system('cls' if os.name=='nt' else 'clear')
 
 def officer_menu(uid,pwd):
-	pass
-
-
+	while True:
+		print("Welcome, Officer "+ uid +" "+ pwd +"!")
+		print("What would you like to do?")
+		print("1 - Issue a ticket\n2 - Find a car owner\nL - Logout")
+		action = input("Action: ")
+		if action == '1':
+			issue_ticket()
+		elif action == '2':
+			find_owner()
+		elif action == 'l' or action == 'L':
+			print("Have a good day officer!")
+			time.sleep(2)
+			break
 
 def register_birth():
 	pass
