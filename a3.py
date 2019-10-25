@@ -126,6 +126,8 @@ def process_BOS():
 	pass
 
 def process_payment():
+	# based on payment's schema, you can pay more than once a day for single tno
+	# i'm not sure if that was their intention
     """
     The user should be able to record a payment by entering a valid
     ticket number and an amount. The payment date is automatically set to
