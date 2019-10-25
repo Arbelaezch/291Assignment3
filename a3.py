@@ -6,6 +6,25 @@ import sqlite3
 connection = None
 cursor = None
 
+# I like keeping table names in string variables to minimize errors
+# region Table Constants
+# region Tickets
+TABLE_TICKETS = "tickets"
+TICKETS_TNO = "tno"
+TICKETS_REGNO = "regno"
+TICKETS_FINE = "fine"
+TICKETS_VIOLATION = "violation"
+TICKETS_VDATE = "vdate"
+# endregion
+
+# region Payments
+TABLE_PAYMENTS = "payments"
+PAYMENTS_TNO = "tno"
+PAYMENTS_PDATE = "pdate"
+PAYMENTS_AMOUNT = "amount"
+# endregion
+# endregion
+
 def close_connection():
 	global connection
 	connection.close()
@@ -105,11 +124,97 @@ def renew_registration():
 	pass
 def process_BOS():
 	pass
+
 def process_payment():
-	pass
+    """
+    The user should be able to record a payment by entering a valid
+    ticket number and an amount. The payment date is automatically set to
+    the day of the payment (today's date). A ticket can be paid in
+    multiple payments but the sum of those payments cannot exceed the
+    fine amount of the ticket.
+    """
+    # region validate ticket existence
+    ticket_number = input("Enter a valid ticket number: ")
+    # todo: check if ticket_number is only a number???
+
+    q_ticket_validation = """SELECT {t_fine} FROM {t} WHERE {t_tno} = :c_tno;
+        """.format(t=TABLE_TICKETS, t_fine=TICKETS_FINE, t_tno=TICKETS_TNO)
+    cursor.execute(q_ticket_validation, {"c_tno": ticket_number})
+    r_fine = cursor.fetchone()
+
+    if r_fine is None:
+        # todo: improve warning
+        # there is no such ticket
+        print("No such ticket")
+        return
+    else:
+        print("Ticket exists! Yay! Remove this please!!!")
+        fine = r_fine[0]
+    # endregion
+
+    # region validate amount is not over
+    amount_input = input("Enter payment amount: ")
+
+    try:
+        amount = int(amount_input)
+    except ValueError:
+        # todo improve message
+        print("That's not a number!!!")
+        return
+
+    if amount <= 0:
+        # todo: improve message
+        print("Invalid amount")
+        return
+
+    q_fine_validation = """SELECT SUM({p_amount})
+    FROM {p}
+    WHERE {p_tno} = :c_tno;
+    """.format(p=TABLE_PAYMENTS, p_amount=PAYMENTS_AMOUNT, p_tno=PAYMENTS_TNO)
+    cursor.execute(q_fine_validation, {"c_tno": ticket_number})
+    old_payments = cursor.fetchone()[0]
+
+    if old_payments is not None and (old_payments + amount) > fine:
+        # todo: improve message
+        print("Over paid. Cancelling")
+        return
+    else:
+        #todo: remove
+        print("Not overpaid")
+
+    # endregion
+
+    # region insert payment
+    q_insert = """INSERT INTO {p} VALUES(?, date('now'), ?);
+    """.format(p=TABLE_PAYMENTS)
+    cursor.execute(q_insert, (ticket_number, amount_input))
+    connection.commit()
+    print("Payment successful")
+    # endregion
+	
+
 def get_driver():
 	pass
 
+def find_available_id(table, column):
+    """
+    Finds the next appropriate integer id for a column in a given table
+    It does this by finding the max and incrementing it by one
+    """
+    global connection, cursor
+
+    query = """
+    SELECT MAX({c}) FROM {t};
+    """.format(t=table, c=column)
+
+    cursor.execute(query)
+    max_id = cursor.fetchone()
+    available_id = 1
+
+    if max_id is not None:
+        available_id = max_id[0] + 1
+
+    return available_id
 
 
 def main():
