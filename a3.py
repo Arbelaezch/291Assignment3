@@ -130,20 +130,66 @@ def register_marriage():
 	reg_number = random.randint(100, 999)
 	current_date = time.strftime("%Y-%m-%d")
 	reg_place = "Edmonton"
-	cursor.execute("insert into marriages values (?, ?, ?, ?, ?, ?, ?);", [str(reg_number), current_date, reg_place, p1fname, p1lname, 
-	p2fname, p2lname])
+	try:
+		cursor.execute("insert into marriages values (?, ?, ?, ?, ?, ?, ?);", [str(reg_number), current_date, reg_place, p1fname, p1lname, 
+		p2fname, p2lname])
+	except sqlite3.IntegrityError:
+		pass
 	cursor.execute("select fname, lname from persons where fname=? and lname=?;", [p1fname, p1lname])
 	if cursor.fetchone() == None:
 		print("Partner 1 is not in our database. Please provide additional information:")
-		bday = input("Enter date of birth YYYY-MM-DD (optional): ")
+		valid_chars = 0
+		while True:
+			bday = input("Enter date of birth YYYY-MM-DD (optional): ")
+			if bday == '':
+				break
+			if len(bday) != 10:
+				print("Birth date must be entered as YYYY-MM-DD")
+				continue
+			for i in range(10):
+				try:
+					int_bday = int(bday[i])
+				except:
+					if bday[i] != '-':
+						print("Birth date must be entered as YYYY-MM-DD")
+						break
+				if bday[i] == '-' and i != 4 and i != 7:
+					print("Birth date must be entered as YYYY-MM-DD")
+					break
+				else:
+					valid_chars += 1
+			if valid_chars == 10:
+				break
 		place = input("Enter place of birth (optional): ")
 		addr = input("Enter your current address (optional): ")
 		phone_no = input("Enter your phone number (optional): ")
 		cursor.execute("insert into persons values (?, ?, ?, ?, ?, ?);", [p1fname, p1lname, bday, place, addr, phone_no])
+		
 	cursor.execute("select fname, lname from persons where fname=? and lname=?;", [p2fname, p2lname])
 	if cursor.fetchone() == None:
-		print("Partner 1 is not in our database. Please provide additional information:")
-		bday = input("Enter date of birth YYYY-MM-DD (optional): ")
+		print("Partner 2 is not in our database. Please provide additional information:")
+		valid_chars = 0
+		while True:
+			bday = input("Enter date of birth YYYY-MM-DD (optional): ")
+			if bday == '':
+				break
+			if len(bday) != 10:
+				print("Birth date must be entered as YYYY-MM-DD")
+				continue
+			for i in range(10):
+				try:
+					int_bday = int(bday[i])
+				except:
+					if bday[i] != '-':
+						print("Birth date must be entered as YYYY-MM-DD")
+						break
+				if bday[i] == '-' and i != 4 and i != 7:
+					print("Birth date must be entered as YYYY-MM-DD")
+					break
+				else:
+					valid_chars += 1
+			if valid_chars == 10:
+				break
 		place = input("Enter place of birth (optional): ")
 		addr = input("Enter your current address (optional): ")
 		phone_no = input("Enter your phone number (optional): ")
