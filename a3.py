@@ -2,6 +2,7 @@ import os
 import time
 import getpass
 import sqlite3
+import random
 
 connection = None
 cursor = None
@@ -119,7 +120,82 @@ def officer_menu(uid,pwd):
 def register_birth():
 	pass
 def register_marriage():
-	pass
+	# Need to check if empty strings appear as null in SQL
+	global cursor
+
+	p1fname = input("Enter the first name of partner 1: ")
+	p1lname = input("Enter the last name of partner 1: ")
+	p2fname = input("Enter the first name of partner 2: ")
+	p2lname = input("Enter the last name of partner 2: ")
+	reg_number = random.randint(100, 999)
+	current_date = time.strftime("%Y-%m-%d")
+	reg_place = "Edmonton"
+	try:
+		cursor.execute("insert into marriages values (?, ?, ?, ?, ?, ?, ?);", [str(reg_number), current_date, reg_place, p1fname, p1lname, 
+		p2fname, p2lname])
+	except sqlite3.IntegrityError:
+		pass
+	cursor.execute("select fname, lname from persons where fname=? and lname=?;", [p1fname, p1lname])
+	if cursor.fetchone() == None:
+		print("Partner 1 is not in our database. Please provide additional information:")
+		valid_chars = 0
+		while True:
+			bday = input("Enter date of birth YYYY-MM-DD (optional): ")
+			if bday == '':
+				break
+			if len(bday) != 10:
+				print("Birth date must be entered as YYYY-MM-DD")
+				continue
+			for i in range(10):
+				try:
+					int_bday = int(bday[i])
+				except:
+					if bday[i] != '-':
+						print("Birth date must be entered as YYYY-MM-DD")
+						break
+				if bday[i] == '-' and i != 4 and i != 7:
+					print("Birth date must be entered as YYYY-MM-DD")
+					break
+				else:
+					valid_chars += 1
+			if valid_chars == 10:
+				break
+		place = input("Enter place of birth (optional): ")
+		addr = input("Enter your current address (optional): ")
+		phone_no = input("Enter your phone number (optional): ")
+		cursor.execute("insert into persons values (?, ?, ?, ?, ?, ?);", [p1fname, p1lname, bday, place, addr, phone_no])
+		
+	cursor.execute("select fname, lname from persons where fname=? and lname=?;", [p2fname, p2lname])
+	if cursor.fetchone() == None:
+		print("Partner 2 is not in our database. Please provide additional information:")
+		valid_chars = 0
+		while True:
+			bday = input("Enter date of birth YYYY-MM-DD (optional): ")
+			if bday == '':
+				break
+			if len(bday) != 10:
+				print("Birth date must be entered as YYYY-MM-DD")
+				continue
+			for i in range(10):
+				try:
+					int_bday = int(bday[i])
+				except:
+					if bday[i] != '-':
+						print("Birth date must be entered as YYYY-MM-DD")
+						break
+				if bday[i] == '-' and i != 4 and i != 7:
+					print("Birth date must be entered as YYYY-MM-DD")
+					break
+				else:
+					valid_chars += 1
+			if valid_chars == 10:
+				break
+		place = input("Enter place of birth (optional): ")
+		addr = input("Enter your current address (optional): ")
+		phone_no = input("Enter your phone number (optional): ")
+		cursor.execute("insert into persons values (?, ?, ?, ?, ?, ?);", [p2fname, p2lname, bday, place, addr, phone_no])
+	return
+
 def renew_registration():
 	pass
 def process_BOS():
