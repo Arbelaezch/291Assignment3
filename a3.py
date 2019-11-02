@@ -48,6 +48,15 @@ TICKETS_VIOLATION = "violation"
 TICKETS_VDATE = "vdate"
 # endregion
 
+# region DemeritNotices
+TABLE_DEMERITS = "demeritNotices"
+DEMERITS_DDATE = "ddate"
+DEMERITS_FNAME = "fname"
+DEMERITS_LNAME = "lname"
+DEMERITS_POINTS = "points"
+DEMERITS_DESC = "desc"
+# endregion
+
 # region Payments
 TABLE_PAYMENTS = "payments"
 PAYMENTS_TNO = "tno"
@@ -420,7 +429,91 @@ def process_payment():
 	
 
 def get_driver():
-	pass
+	"""
+	Get a driver abstract. The user should be able to enter a first name and a 
+	last name and get a driver abstract, which includes the number of tickets, 
+	the number of demerit notices, the total number of demerit points received 
+	both within the past two years and within the lifetime. The user should 
+	be given the option to see the tickets ordered from the latest to the oldest. 
+	For each ticket, you will report the ticket number, the violation date, 
+	the violation description, the fine, the registration number and the make 
+	and model of the car for which the ticket is issued. If there are more than 
+	5 tickets, at most 5 tickets will be shown at a time, and the user can 
+	select to see more.
+	"""
+	global connection, cursor
+	first_name = input("Enter a first name: ")
+	last_name = input("Enter a last name: ")
+
+	# Validate that the person in our system
+	query = """SELECT * FROM {r}
+	WHERE {r_fname} LIKE :fname AND {r_lname} LIKE :lname;
+	""".format(r=TABLE_REGISTRATIONS, r_fname=REGISTRATION_FNAME, 
+		r_lname=REGISTRATION_LNAME)
+	cursor.execute(query, {"fname" : first_name, "lname" : last_name})
+	result = cursor.fetchone()
+
+	if result == None:
+		print("{0} {1} is not registered in the database.".format(first_name, last_name))
+		print("Unable to get driver abstract.")
+		return
+	
+	ticket_count = 0
+	demerit_count = 0
+	latest_points = 0
+	lifetime_points = 0
+
+	query = """SELECT COUNT(*) FROM {r}, {t}
+	WHERE {r}.{r_fname} LIKE :fname AND {r}.{r_lname} LIKE :lname AND 
+		{t}.{t_regno} = {r}.{r_regno};
+	""".format(r=TABLE_REGISTRATIONS, t=TABLE_TICKETS, r_fname=REGISTRATION_FNAME,
+		r_lname=REGISTRATION_LNAME, t_regno=TICKETS_REGNO, r_regno=REGISTRATION_REGNO)
+	print(query)
+	cursor.execute(query, {"fname" : first_name, "lname" : last_name})
+	result = cursor.fetchone()
+
+	if result != None:
+		print("We got the result: " + str(result[0]))
+		ticket_count = result[0]
+	else:
+		print("We are here!")
+
+	query = """SELECT COUNT(*), SUM({d_points}) FROM {d}
+	WHERE {d_fname} LIKE :fname AND {d_lname} LIKE :lname;
+	""".format(d=TABLE_DEMERITS, d_fname=DEMERITS_FNAME, d_lname=DEMERITS_LNAME,
+		d_points=DEMERITS_POINTS)
+	cursor.execute(query, {"fname" : first_name, "lname" : last_name})
+	result = cursor.fetchone()
+
+	if result != None:
+		demerit_count = result[0]
+		lifetime_points = result[1]
+		if lifetime_points == None:
+			lifetime_points = 0
+
+	# todo: decide if < or <=, just think about that later
+	query = """SELECT SUM({d_points}) FROM {d}
+	WHERE {d_fname} LIKE :fname AND {d_lname} LIKE :lname 
+		AND {d_ddate} >= date('now', '-2 year');
+	""".format(d=TABLE_DEMERITS, d_fname=DEMERITS_FNAME, d_lname=DEMERITS_LNAME,
+		d_points=DEMERITS_POINTS, d_ddate=DEMERITS_DDATE)
+	cursor.execute(query, {"fname" : first_name, "lname" : last_name})
+	result = cursor.fetchone()
+
+	if result != None and result[0] != None:
+		latest_points = result[0]
+	
+	messages = ("Driver abstract for {0} {1}".format(first_name, last_name),
+		"Number of tickets: {0}".format(ticket_count),
+		"Number of demerit notices: {0}".format(demerit_count),
+		"Demerit points within the past two years: {0}".format(latest_points),
+		"Lifetime demerits points: {0}".format(lifetime_points))
+	print_message(messages)
+
+	message_list = ("Do you want to see the tickets that {0} has received?".format(first_name + " " + last_name),
+	"Enter y or Y only to see the tickets. Enter n or N to not see them.")
+	print_message(message_list)
+	should_see_ticket = input("Input: ")
 
 def find_available_id(table, column):
 	"""
@@ -441,6 +534,10 @@ def find_available_id(table, column):
 		available_id = max_id[0] + 1
 
 	return available_id
+
+def print_message(list_of_messages):
+	for item in list_of_messages:
+		print(item)
 
 def main():
 	
