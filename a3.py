@@ -433,15 +433,10 @@ def get_driver():
 	Get a driver abstract. The user should be able to enter a first name and a 
 	last name and get a driver abstract, which includes the number of tickets, 
 	the number of demerit notices, the total number of demerit points received 
-	both within the past two years and within the lifetime. The user should 
-	be given the option to see the tickets ordered from the latest to the oldest. 
-	For each ticket, you will report the ticket number, the violation date, 
-	the violation description, the fine, the registration number and the make 
-	and model of the car for which the ticket is issued. If there are more than 
-	5 tickets, at most 5 tickets will be shown at a time, and the user can 
-	select to see more.
+	both within the past two years and within the lifetime.
 	"""
 	global connection, cursor
+	clear_screen()
 	first_name = input("Enter a first name: ")
 	last_name = input("Enter a last name: ")
 
@@ -468,7 +463,6 @@ def get_driver():
 		{t}.{t_regno} = {r}.{r_regno};
 	""".format(r=TABLE_REGISTRATIONS, t=TABLE_TICKETS, r_fname=REGISTRATION_FNAME,
 		r_lname=REGISTRATION_LNAME, t_regno=TICKETS_REGNO, r_regno=REGISTRATION_REGNO)
-	print(query)
 	cursor.execute(query, {"fname" : first_name, "lname" : last_name})
 	result = cursor.fetchone()
 
@@ -508,12 +502,78 @@ def get_driver():
 		"Number of demerit notices: {0}".format(demerit_count),
 		"Demerit points within the past two years: {0}".format(latest_points),
 		"Lifetime demerits points: {0}".format(lifetime_points))
-	print_message(messages)
+	display_messages(messages)
 
-	message_list = ("Do you want to see the tickets that {0} has received?".format(first_name + " " + last_name),
-	"Enter y or Y only to see the tickets. Enter n or N to not see them.")
-	print_message(message_list)
+	"""
+	The user should be given the option to see 
+	the tickets ordered from the latest to the oldest. 
+	For each ticket, you will report the ticket number, the violation date, 
+	the violation description, the fine, the registration number and the make 
+	and model of the car for which the ticket is issued. If there are more than 
+	5 tickets, at most 5 tickets will be shown at a time, and the user can 
+	select to see more.
+	"""
+	message_list = ("Do you want to see the tickets that {0} has received?"
+			.format(first_name + " " + last_name),
+		"Enter y or Y only to see the tickets.",
+		"Any other input would send you back to the main menu.")
+	display_messages(message_list)
 	should_see_ticket = input("Input: ")
+
+	clear_screen()
+	if not (should_see_ticket.lower() == "y"):
+		return
+	
+	query = """SELECT {t}.{t_tno}, {t}.{t_vdate}, {t}.{t_violation}, 
+		{t}.{t_fine}, {t}.{t_regno}, {v}.{v_make}, {v}.{v_model}
+	FROM {t}, {r}, {v}
+	WHERE {r}.{r_fname} LIKE :fname AND {r}.{r_lname} LIKE :lname AND 
+		{r}.{r_regno} = {t}.{t_regno} AND {v}.{v_vin} = {r}.{r_vin}
+	ORDER BY {t}.{t_vdate} DESC;
+	""".format(t=TABLE_TICKETS, r=TABLE_REGISTRATIONS, v=TABLE_VEHICLES,
+		t_tno=TICKETS_TNO, t_vdate=TICKETS_VDATE, t_violation=TICKETS_VIOLATION,
+		t_fine=TICKETS_FINE, t_regno=TICKETS_REGNO, v_make=VEHICLES_MAKE,
+		v_model=VEHICLES_MODEL, r_fname=REGISTRATION_FNAME,
+		r_lname=REGISTRATION_LNAME, v_vin=VEHICLES_VIN, r_regno=REGISTRATION_REGNO,
+		r_vin=REGISTRATION_VIN)
+	cursor.execute(query, {"fname" : first_name, "lname" : last_name})
+	result = cursor.fetchall()
+	
+	if result == None:
+		print("{0} {1} has no tickets in the record".format(first_name, last_name))
+		return
+
+	MAX_TICKET_VIEW = 5
+	ind = 0
+
+	print("Ticket details: ")
+	while ind < len(result):
+		if ind != 0 and ind % MAX_TICKET_VIEW == 0:
+			should_see_ticket = input("Enter ""Y"" to see more: ")
+
+			clear_screen()
+			if not (should_see_ticket.lower() == "y"):
+				return
+			print("Ticket details: ")
+		else:
+			row = result[ind]
+			messages = ("-"*20,
+				"Ticket number: {0}".format(row[0]),
+				"-"*20,
+				"Violation date: {0}".format(row[1]),
+				"Violation description: {0}".format(row[2]),
+				"Fine: {0}".format(row[3]),
+				"Registration number: {0}".format(row[4]),
+				"Vehicle make: {0}".format(row[5]),
+				"Vehicle model: {0}".format(row[6]),
+				"-"*20,
+				"")
+			display_messages(messages)
+			ind += 1
+	
+	input("Press enter to go back to the menu.")
+	clear_screen()
+
 
 def find_available_id(table, column):
 	"""
@@ -535,7 +595,10 @@ def find_available_id(table, column):
 
 	return available_id
 
-def print_message(list_of_messages):
+def clear_screen():
+	os.system('cls' if os.name=='nt' else 'clear')
+
+def display_messages(list_of_messages):
 	for item in list_of_messages:
 		print(item)
 
