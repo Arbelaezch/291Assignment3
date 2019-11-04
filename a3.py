@@ -2,6 +2,8 @@ import os
 import time
 import getpass
 import sqlite3
+import sys
+from datetime import date 
 
 connection = None
 cursor = None
@@ -171,7 +173,7 @@ def register_birth(reg_place):
 		lname = input("Enter the last name of the child: ")
 		if lname != '':
 			break
-	cursor.execute("select fname, lname from persons where fname=? and lname=?;", [fname, lname])
+	cursor.execute("select fname, lname from persons where fname like ? and lname like ?;", [fname, lname])
 	if cursor.fetchone() != None:
 		print("This person is already in our database.")
 		return
@@ -225,7 +227,7 @@ def register_birth(reg_place):
 		if f_lname != '':
 			break
 	
-	cursor.execute("select * from persons where fname=? and lname=?;", [m_fname, m_lname])
+	cursor.execute("select * from persons where fname like ? and lname like ?;", [m_fname, m_lname])
 	mother = cursor.fetchone()
 	if mother == None:
 		print("Mother is not in our database. Please provide additional information:")
@@ -269,9 +271,12 @@ def register_birth(reg_place):
 		cursor.execute("insert into persons values (?, ?, ?, ?, ?, ?);", [fname, lname, bdate, bplace, addr, phone_no])
 	else:
 		cursor.execute("insert into persons values (?, ?, ?, ?, ?, ?);", [fname, lname, bdate, bplace, mother[4], mother[5]])
+		m_fname = mother[0]
+		m_lname = mother[1]
 
-	cursor.execute("select fname, lname from persons where fname=? and lname=?;", [f_fname, f_lname])
-	if cursor.fetchone() == None:
+	cursor.execute("select fname, lname from persons where fname like ? and lname like ?;", [f_fname, f_lname])
+	father = cursor.fetchone()
+	if father == None:
 		print("Father is not in our database. Please provide additional information:")
 		while True:
 			valid_chars = 0
@@ -310,6 +315,9 @@ def register_birth(reg_place):
 		if phone_no == '':
 			phone_no = None
 		cursor.execute("insert into persons values (?, ?, ?, ?, ?, ?);", [f_fname, f_lname, bday, place, addr, phone_no])
+	else:
+		f_fname = father[0]
+		f_lname = father[1]
 	reg_number = find_available_id("births", "regno")
 	current_date = time.strftime("%Y-%m-%d")
 	cursor.execute("insert into births values (?,?,?,?,?,?,?,?,?,?);", [str(reg_number),fname,lname,current_date,reg_place,gender,
@@ -338,8 +346,9 @@ def register_marriage(reg_place):
 	reg_number = find_available_id("marriages", "regno")
 	current_date = time.strftime("%Y-%m-%d")
 
-	cursor.execute("select fname, lname from persons where fname=? and lname=?;", [p1fname, p1lname])
-	if cursor.fetchone() == None:
+	cursor.execute("select fname, lname from persons where fname like ? and lname like ?;", [p1fname, p1lname])
+	result = cursor.fetchone()
+	if result == None:
 		print("Partner 1 is not in our database. Please provide additional information:")
 		while True:
 			valid_chars = 0
@@ -378,9 +387,13 @@ def register_marriage(reg_place):
 		if phone_no == '':
 			phone_no = None
 		cursor.execute("insert into persons values (?, ?, ?, ?, ?, ?);", [p1fname, p1lname, bday, place, addr, phone_no])
+	else:
+		p1fname = result[0]
+		p1lname = result[1]
 		
-	cursor.execute("select fname, lname from persons where fname=? and lname=?;", [p2fname, p2lname])
-	if cursor.fetchone() == None:
+	cursor.execute("select fname, lname from persons where fname like ? and lname like ?;", [p2fname, p2lname])
+	result = cursor.fetchone()
+	if result == None:
 		print("Partner 2 is not in our database. Please provide additional information:")
 		while True:
 			valid_chars = 0
@@ -419,7 +432,9 @@ def register_marriage(reg_place):
 		if phone_no == '':
 			phone_no = None
 		cursor.execute("insert into persons values (?, ?, ?, ?, ?, ?);", [p2fname, p2lname, bday, place, addr, phone_no])
-
+	else:
+		p2fname = result[0]
+		p2lname = result[1]
 	cursor.execute("insert into marriages values (?, ?, ?, ?, ?, ?, ?);", [str(reg_number), current_date, reg_place, p1fname, p1lname, 
 		p2fname, p2lname])
 	connection.commit()
@@ -1010,8 +1025,9 @@ def find_owner():
 
 def main():
 	
-	path = "./a3.db"
-	defaultPath = path
+	# path = "./a3.db"
+	if len(sys.argv) == 2:
+		path = sys.argv[1]
 
 	connect(path)
 
