@@ -1,5 +1,3 @@
-test
-
 import os
 import time
 import getpass
@@ -89,13 +87,14 @@ def login(uid,pwd):
 	usr_login = cursor.fetchone()
 	
 	if usr_login == None:
-		print('You fucked up!')
+		print('Username/Password wrong!')
 	else:
 		return usr_login[0]
 
 
 def login_screen():	
 	while True:
+		os.system('cls' if os.name=='nt' else 'clear')
 		print("Welcome! Please (L)ogin or (E)xit.")
 		action = input("Action: ")
 		action = action.upper()
@@ -119,10 +118,11 @@ def login_screen():
 	
 def agent_menu(uid, password):
 	while True:
+		os.system('cls' if os.name=='nt' else 'clear')
 		print("Welcome, Agent "+ uid +" "+ password +"!")
 		print("What would you like to do?")
-		print("1 - Register a birth\n2 - Register a marriage\n3 - Renew a vehicle registration\n4 - Process a bill of sale\n5 - Process a payment\n6 - Get a driver abstract")
-		print("L - Logout")
+		print("[1] Register a birth\n[2] Register a marriage\n[3] Renew a vehicle registration\n[4] Process a bill of sale\n[5] Process a payment\n[6] Get a driver abstract")
+		print("[L] Logout")
 		action = input("Action: ")
 		if action == '1':
 			register_birth()
@@ -142,20 +142,20 @@ def agent_menu(uid, password):
 			break
 		else:
 			print("Invalid entry!\n Please try again.")
-			os.system('cls' if os.name=='nt' else 'clear')
 
 def officer_menu(uid,pwd):
 	while True:
+		os.system('cls' if os.name=='nt' else 'clear')
 		print("Welcome, Officer "+ uid +" "+ pwd +"!")
 		print("What would you like to do?")
-		print("1 - Issue a ticket\n2 - Find a car owner\nL - Logout")
+		print("[1] Issue a ticket\n[2] Find a car owner\n[L] Logout")
 		action = input("Action: ")
 		if action == '1':
 			issue_ticket()
 		elif action == '2':
 			find_owner()
 		elif action == 'l' or action == 'L':
-			print("Have a good day officer!")
+			print("Have a good day, Officer!")
 			time.sleep(2)
 			break
 
@@ -618,6 +618,177 @@ def display_messages(list_of_messages):
 	for item in list_of_messages:
 		print(item)
 
+		
+
+def issue_ticket():
+	global connection, cursor
+	
+	regno = input("Please enter registration number: ")
+	
+	query = ''' SELECT * FROM registrations r, vehicles v
+				WHERE r.regno=? AND r.vin=v.vin '''
+
+	cursor.execute(query, (regno,))
+	driver = cursor.fetchone()
+
+	if driver == None:
+		print("No matching registration number, taking you back to main menu.")
+		time.sleep(2)
+		return
+
+	print(driver[5],driver[6],driver[8],driver[9],driver[10],driver[11])
+
+	vdate = input('Violation Date (YYYY-MM-DD): ')
+	text = input('Violation Text: ')
+	amt = input('Fine Amount: ')
+
+	if vdate == "":
+		vdate = str(date.today())
+
+	tno = generate_tno()
+
+	cursor.execute('INSERT INTO tickets(tno,regno,fine, violation,vdate) VALUES (?,?,?,?,?);', 
+		(tno, regno, amt, text,vdate))
+	connection.commit()
+
+	print("Ticket issued! Now taking you back to the main menu.")
+	time.sleep(2)
+
+
+# For use with issue_ticket(): Generates a unique tno that is greater than any other tno.
+def generate_tno():
+	global connection, cursor
+
+	#query = '''SELECT tno+1 from tickets where tno != (select max(tno) from tickets)
+	query = ''' SELECT max(tno)+1 FROM tickets '''
+	cursor.execute(query)
+	return cursor.fetchone()[0]
+
+
+def find_owner():
+	global connection, cursor
+
+	while(True):
+		os.system('cls' if os.name=='nt' else 'clear')
+		print("Find car owner by providing: ")
+		make = input("Make: ")
+		model = input("Model: ")
+		year = input("Year: ")
+		color = input("Color: ")
+		plate = input("Plate: ")
+
+		if make=="" and model=="" and year=="" and color=="" and plate=="":
+			print("Please enter at least One Piece of driver information.")
+			time.sleep(2)
+			continue
+		else:
+			break
+
+
+	result = []
+	query = ''' SELECT * FROM registrations r, vehicles v
+				WHERE r.vin=v.vin '''
+	cursor.execute(query)
+	result = cursor.fetchall()
+	
+
+	if make != "":
+		make1 = []
+		query = ''' SELECT * FROM registrations r, vehicles v
+					WHERE v.make LIKE ? AND r.vin=v.vin '''
+
+		cursor.execute(query, (make,))
+		make1 = cursor.fetchall()
+		result = list(set(result) & set(make1))
+	if model != "":
+		model1 = []
+		query = ''' SELECT * FROM registrations r, vehicles v
+					WHERE v.model LIKE ? AND r.vin=v.vin '''
+
+		cursor.execute(query, (model,))
+		model1 = cursor.fetchall()
+		result = list(set(result) & set(model1))
+	if year != "":
+		year1 = []
+		query = ''' SELECT * FROM registrations r, vehicles v
+					WHERE v.year=? AND r.vin=v.vin '''
+
+		cursor.execute(query, (year,))
+		year1 = cursor.fetchall()
+		result = list(set(result) & set(year1))
+	if color != "":
+		color1 = []
+		query = ''' SELECT * FROM registrations r, vehicles v
+					WHERE v.color LIKE ? AND r.vin=v.vin '''
+
+		cursor.execute(query, (color,))
+		color1 = cursor.fetchall()
+		result = list(set(result) & set(color1))
+	if plate != "":
+		plate1 = []
+		query = ''' SELECT * FROM registrations r, vehicles v
+					WHERE r.plate LIKE ? AND r.vin=v.vin '''
+
+		cursor.execute(query, (plate,))
+		plate1 = cursor.fetchall()
+		result = list(set(result) & set(plate1))
+	
+
+	i = 0;
+	a = len(result)
+	if a == 0:
+		print("No matching drivers, taking you back to main menu.")
+		time.sleep(2)
+		return
+	elif a < 4:
+		os.system('cls' if os.name=='nt' else 'clear')
+		print("Owner search results: ")
+		print("|Make|Model|Year|Color|Plate #|Reg Date|Expiry Date|Name|")
+		while i < 1:
+			for r in result:
+				print(r[8],r[9],r[10],r[11],r[3],r[1],r[2],r[5],r[6])
+			i += 1
+		while(True):
+			e = input("[e] Back to menu: ")
+			if e == 'e' or e == 'E':
+				return
+	else:                       # Else if there are more than 3 results.
+		while i < 1:            # Print results
+			os.system('cls' if os.name=='nt' else 'clear')
+			print("Owner search results: ")
+			print("|Make|Model|Year|Color|Plate #|Reg Date|Expiry Date|Name|")
+			j = 1
+			for r in result:
+				print("[%d] %s %s %s %s %s" % (j, r[8],r[9],r[10],r[11],r[3]))
+				j += 1
+			i += 1
+			print("[e] Back to menu ")
+		
+		while(True):            # Select result
+			action = input("Action: ")
+			
+			if action == 'e' or action == 'E':
+				return
+			
+			action = int(action)-1
+			
+			if action <= a:
+				j = 0;
+				for i in result:
+					if j < action:
+						j += 1
+						continue
+					print(i[8],i[9],i[10],i[11],i[3],i[1],i[2],i[5],i[6])
+					break
+				while (True):
+					action = input("[e] Back to menu: ")
+					if action == 'e' or action =='E':
+						return
+		
+		
+		
+		
+		
 def main():
 	
 	path = "./a3.db"
