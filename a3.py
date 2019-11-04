@@ -2,7 +2,6 @@ import os
 import time
 import getpass
 import sqlite3
-import random
 
 connection = None
 cursor = None
@@ -116,6 +115,10 @@ def login_screen():
 	
 	
 def agent_menu(uid, password):
+	global cursor
+
+	cursor.execute("select city from users where uid=?;", [uid])
+	city = cursor.fetchone()[0]
 	while True:
 		print("Welcome, Agent "+ uid +" "+ password +"!")
 		print("What would you like to do?")
@@ -123,9 +126,9 @@ def agent_menu(uid, password):
 		print("L - Logout")
 		action = input("Action: ")
 		if action == '1':
-			register_birth()
+			register_birth(city)
 		elif action == '2':
-			register_marriage()
+			register_marriage(city)
 		elif action == '3':
 			renew_registration()
 		elif action == '4':
@@ -157,29 +160,77 @@ def officer_menu(uid,pwd):
 			time.sleep(2)
 			break
 
-def register_birth():
-	pass
-def register_marriage():
-	# Need to check if empty strings appear as null in SQL
-	global cursor
+def register_birth(reg_place):
+	global cursor, connection
 
-	p1fname = input("Enter the first name of partner 1: ")
-	p1lname = input("Enter the last name of partner 1: ")
-	p2fname = input("Enter the first name of partner 2: ")
-	p2lname = input("Enter the last name of partner 2: ")
-	reg_number = random.randint(100, 999)
-	current_date = time.strftime("%Y-%m-%d")
-	reg_place = "Edmonton"
-	try:
-		cursor.execute("insert into marriages values (?, ?, ?, ?, ?, ?, ?);", [str(reg_number), current_date, reg_place, p1fname, p1lname, 
-		p2fname, p2lname])
-	except sqlite3.IntegrityError:
-		pass
-	cursor.execute("select fname, lname from persons where fname=? and lname=?;", [p1fname, p1lname])
-	if cursor.fetchone() == None:
-		print("Partner 1 is not in our database. Please provide additional information:")
-		valid_chars = 0
+	while True:
+		fname = input("Enter the first name of the child: ")
+		if fname != '':
+			break
+	while True:
+		lname = input("Enter the last name of the child: ")
+		if lname != '':
+			break
+	cursor.execute("select fname, lname from persons where fname=? and lname=?;", [fname, lname])
+	if cursor.fetchone() != None:
+		print("This person is already in our database.")
+		return
+	
+	while True:
+		gender = input("Enter the gender of the child (M or F): ")
+		if gender == 'M' or gender == 'F' or gender == 'm' or gender == 'f':
+			gender = gender.upper()
+			break
+	while True:
+			valid_chars = 0
+			bdate = input("Enter date of birth (YYYY-MM-DD): ")
+			if len(bdate) != 10:
+				print("Birth date must be entered as YYYY-MM-DD")
+				continue
+			for i in range(10):
+				try:
+					int_bday = int(bdate[i])
+				except:
+					if bdate[i] != '-':
+						print("Birth date must be entered as YYYY-MM-DD")
+						break
+				if (i == 4 or i == 7) and bdate[i] != '-':
+					print("Birth date must be entered as YYYY-MM-DD")
+					break
+				if bdate[i] == '-' and i != 4 and i != 7:
+					print("Birth date must be entered as YYYY-MM-DD")
+					break
+				else:
+					valid_chars += 1
+			if valid_chars == 10:
+				break
+	while True:
+		bplace = input("Enter the place of birth: ")
+		if bplace != '':
+			break
+	while True:
+		m_fname = input("Mother's first name: ")
+		if m_fname != '':
+			break
+	while True:
+		m_lname = input("Mother's last name: ")
+		if m_lname != '':
+			break
+	while True:
+		f_fname = input("Father's first name: ")
+		if f_fname != '':
+			break
+	while True:
+		f_lname = input("Father's last name: ")
+		if f_lname != '':
+			break
+	
+	cursor.execute("select * from persons where fname=? and lname=?;", [m_fname, m_lname])
+	mother = cursor.fetchone()
+	if mother == None:
+		print("Mother is not in our database. Please provide additional information:")
 		while True:
+			valid_chars = 0
 			bday = input("Enter date of birth YYYY-MM-DD (optional): ")
 			if bday == '':
 				break
@@ -193,6 +244,9 @@ def register_marriage():
 					if bday[i] != '-':
 						print("Birth date must be entered as YYYY-MM-DD")
 						break
+				if (i == 4 or i == 7) and bday[i] != '-':
+					print("Birth date must be entered as YYYY-MM-DD")
+					break
 				if bday[i] == '-' and i != 4 and i != 7:
 					print("Birth date must be entered as YYYY-MM-DD")
 					break
@@ -203,13 +257,133 @@ def register_marriage():
 		place = input("Enter place of birth (optional): ")
 		addr = input("Enter your current address (optional): ")
 		phone_no = input("Enter your phone number (optional): ")
+		if bday == '':
+			bday = None
+		if place == '':
+			place = None
+		if addr == '':
+			addr = None
+		if phone_no == '':
+			phone_no = None
+		cursor.execute("insert into persons values (?, ?, ?, ?, ?, ?);", [m_fname, m_lname, bday, place, addr, phone_no])
+		cursor.execute("insert into persons values (?, ?, ?, ?, ?, ?);", [fname, lname, bdate, bplace, addr, phone_no])
+	else:
+		cursor.execute("insert into persons values (?, ?, ?, ?, ?, ?);", [fname, lname, bdate, bplace, mother[4], mother[5]])
+
+	cursor.execute("select fname, lname from persons where fname=? and lname=?;", [f_fname, f_lname])
+	if cursor.fetchone() == None:
+		print("Father is not in our database. Please provide additional information:")
+		while True:
+			valid_chars = 0
+			bday = input("Enter date of birth YYYY-MM-DD (optional): ")
+			if bday == '':
+				break
+			if len(bday) != 10:
+				print("Birth date must be entered as YYYY-MM-DD")
+				continue
+			for i in range(10):
+				try:
+					int_bday = int(bday[i])
+				except:
+					if bday[i] != '-':
+						print("Birth date must be entered as YYYY-MM-DD")
+						break
+				if (i == 4 or i == 7) and bday[i] != '-':
+					print("Birth date must be entered as YYYY-MM-DD")
+					break
+				if bday[i] == '-' and i != 4 and i != 7:
+					print("Birth date must be entered as YYYY-MM-DD")
+					break
+				else:
+					valid_chars += 1
+			if valid_chars == 10:
+				break
+		place = input("Enter place of birth (optional): ")
+		addr = input("Enter your current address (optional): ")
+		phone_no = input("Enter your phone number (optional): ")
+		if bday == '':
+			bday = None
+		if place == '':
+			place = None
+		if addr == '':
+			addr = None
+		if phone_no == '':
+			phone_no = None
+		cursor.execute("insert into persons values (?, ?, ?, ?, ?, ?);", [f_fname, f_lname, bday, place, addr, phone_no])
+	reg_number = find_available_id("births", "regno")
+	current_date = time.strftime("%Y-%m-%d")
+	cursor.execute("insert into births values (?,?,?,?,?,?,?,?,?,?);", [str(reg_number),fname,lname,current_date,reg_place,gender,
+	f_fname,f_lname,m_fname,m_lname])
+	connection.commit()
+
+def register_marriage(reg_place):
+	global cursor, connection
+
+	while True:
+		p1fname = input("Enter the first name of partner 1: ")
+		if p1fname != '':
+			break
+	while True:
+		p1lname = input("Enter the last name of partner 1: ")
+		if p1lname != '':
+			break
+	while True:
+		p2fname = input("Enter the first name of partner 2: ")
+		if p2fname != '':
+			break
+	while True:
+		p2lname = input("Enter the last name of partner 2: ")
+		if p2lname != '':
+			break
+	reg_number = find_available_id("marriages", "regno")
+	current_date = time.strftime("%Y-%m-%d")
+
+	cursor.execute("select fname, lname from persons where fname=? and lname=?;", [p1fname, p1lname])
+	if cursor.fetchone() == None:
+		print("Partner 1 is not in our database. Please provide additional information:")
+		while True:
+			valid_chars = 0
+			bday = input("Enter date of birth YYYY-MM-DD (optional): ")
+			if bday == '':
+				break
+			if len(bday) != 10:
+				print("Birth date must be entered as YYYY-MM-DD")
+				continue
+			for i in range(10):
+				try:
+					int_bday = int(bday[i])
+				except:
+					if bday[i] != '-':
+						print("Birth date must be entered as YYYY-MM-DD")
+						break
+				if (i == 4 or i == 7) and bday[i] != '-':
+					print("Birth date must be entered as YYYY-MM-DD")
+					break
+				if bday[i] == '-' and i != 4 and i != 7:
+					print("Birth date must be entered as YYYY-MM-DD")
+					break
+				else:
+					valid_chars += 1
+			if valid_chars == 10:
+				break
+		place = input("Enter place of birth (optional): ")
+		addr = input("Enter your current address (optional): ")
+		phone_no = input("Enter your phone number (optional): ")
+		if bday == '':
+			bday = None
+		if place == '':
+			place = None
+		if addr == '':
+			addr = None
+		if phone_no == '':
+			phone_no = None
 		cursor.execute("insert into persons values (?, ?, ?, ?, ?, ?);", [p1fname, p1lname, bday, place, addr, phone_no])
 		
 	cursor.execute("select fname, lname from persons where fname=? and lname=?;", [p2fname, p2lname])
 	if cursor.fetchone() == None:
 		print("Partner 2 is not in our database. Please provide additional information:")
-		valid_chars = 0
 		while True:
+			valid_chars = 0
 			bday = input("Enter date of birth YYYY-MM-DD (optional): ")
 			if bday == '':
 				break
@@ -223,6 +397,9 @@ def register_marriage():
 					if bday[i] != '-':
 						print("Birth date must be entered as YYYY-MM-DD")
 						break
+				if (i == 4 or i == 7) and bday[i] != '-':
+					print("Birth date must be entered as YYYY-MM-DD")
+					break
 				if bday[i] == '-' and i != 4 and i != 7:
 					print("Birth date must be entered as YYYY-MM-DD")
 					break
@@ -233,11 +410,43 @@ def register_marriage():
 		place = input("Enter place of birth (optional): ")
 		addr = input("Enter your current address (optional): ")
 		phone_no = input("Enter your phone number (optional): ")
+		if bday == '':
+			bday = None
+		if place == '':
+			place = None
+		if addr == '':
+			addr = None
+		if phone_no == '':
+			phone_no = None
 		cursor.execute("insert into persons values (?, ?, ?, ?, ?, ?);", [p2fname, p2lname, bday, place, addr, phone_no])
-	return
+
+	cursor.execute("insert into marriages values (?, ?, ?, ?, ?, ?, ?);", [str(reg_number), current_date, reg_place, p1fname, p1lname, 
+		p2fname, p2lname])
+	connection.commit()
 
 def renew_registration():
-	pass
+	global cursor, connection
+	while True:
+		reg_no = input("Enter the registration number: ")
+		try:
+			reg_no = int(reg_no)
+		except:
+			print("Not a valid registration number.")
+			continue
+		cursor.execute("select regno, expiry from registrations where regno=?;", [reg_no])
+		reg = cursor.fetchone()
+		if reg != None:
+			break
+		else:
+			print("This registration number does not exist.")
+	if reg[1] <= time.strftime("%Y-%m-%d"):
+		cursor.execute("select date('now', '+1 year');")
+		new_expiry = cursor.fetchone()[0]
+	else:
+		cursor.execute("select date(?, '+1 year');", [reg[1],])
+		new_expiry = cursor.fetchone()[0]
+	cursor.execute("update registrations set expiry=? where regno=?", [new_expiry, reg_no])
+	connection.commit()
 
 def process_BOS(): 
 	"""
