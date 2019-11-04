@@ -240,10 +240,6 @@ def renew_registration():
 	pass
 
 def process_BOS(): 
-	# todo: double check what they mean by cars not having owners
-	# does this mean that it is registered but the owners are null
-	# or that vin does not exist anywhere in registrations
-	# what happens if the registration from transfer is already expired???
 	"""
 	The user should be able to record a bill of sale by providing the vin of a 
 	car, the name of the current owner, the name of the new owner, and a 
@@ -258,23 +254,25 @@ def process_BOS():
 	new_owner = input("Enter new owner name: ")
 	plate = input("Enter a plate number: ")
 	
-	# validate person
-	q_person = """SELECT {p_fname}, {p_lname}
+	# region validate person
+	query = """SELECT {p_fname}, {p_lname}
 	FROM {p}
 	WHERE {p_fname} || " " || {p_lname} LIKE :new_owner;
 	""".format(p=TABLE_PERSONS, p_fname=PERSONS_FNAME, p_lname=PERSONS_LNAME)
-	cursor.execute(q_person, {"new_owner" : new_owner})
-	person_name = cursor.fetchone()
+	cursor.execute(query, {"new_owner" : new_owner})
+	result = cursor.fetchone()
 
-	if person_name == None:
+	if result == None:
 		print("New owner is not in database. Transaction cannot be made")
+		transition_screen()
 		return
-	
-	fname = person_name[0]
-	lname = person_name[1]
+
+	fname = result[0]
+	lname = result[1]
+	# endregion
 
 	# check which case of process BOS to take
-	q_case = """SELECT * FROM
+	query = """SELECT * FROM
 	(
 		SELECT {v_vin}
 		FROM {v}
@@ -289,44 +287,45 @@ def process_BOS():
 	ON A.{v_vin}=B.{r_vin};
 	""".format(v=TABLE_VEHICLES, v_vin=VEHICLES_VIN, r=TABLE_REGISTRATIONS,
 	r_vin=REGISTRATION_VIN)
-	cursor.execute(q_case, {"vin" : vin})
-	car_details = cursor.fetchone()
+	cursor.execute(query, {"vin" : vin})
+	result = cursor.fetchone()
 
-	if car_details == None:
+	if result == None:
 		print("Car with vin {0} does not exist. Transfer failed.".format(vin))
+		transition_screen()
 		return
 	
-	is_car_new = car_details[1] == None
+	is_car_new = result[1] == None
 
 	if is_car_new:
 		print("Car with vin {0} has no owner yet.".format(vin))
 	else:
-		q_validation = """SELECT {r_regno}
+		vin = result[1]
+		query = """SELECT {r_regno}, {r_fname} || " " || {r_lname}
 			FROM {r}
-			WHERE {r_vin} LIKE :c_vin AND {r_fname} || " " || {r_lname} LIKE :c_owner
-			ORDER BY {r_regdate} DESC
+			WHERE {r_vin} LIKE :c_vin
+			ORDER BY {r_regexp} DESC
 			LIMIT 1;
 		""".format(r=TABLE_REGISTRATIONS, r_vin=REGISTRATION_VIN,
 			r_fname=REGISTRATION_FNAME, r_lname=REGISTRATION_LNAME,
-			r_regno=REGISTRATION_REGNO, r_regdate=REGISTRATION_REGDATE)
-		cursor.execute(q_validation, {"c_vin" : vin, "c_owner" : current_owner})
-		reg_no = cursor.fetchone()
+			r_regno=REGISTRATION_REGNO, r_regexp=REGISTRATION_EXPIRY)
+		cursor.execute(query, {"c_vin" : vin})
+		result = cursor.fetchone()
 
-		if reg_no == None:
-			# In finding the owner of a car, if a car is not registered, 
-			# you will indicate in your output that the car has no owner.
-			# Check if car is owned, if not, register the car as new
+		if result == None or result[1].lower() != current_owner.lower():
 			print("Transfer cannot be made. Some details are invalid.")
+			transition_screen()
 			return
-		reg_no = reg_no[0]
+		
+		reg_no = result[0]
 
 		# update expiry date if car has already been registered with an owner
-		q_update = """UPDATE {r} 
+		query = """UPDATE {r} 
 		SET {r_exp} = date('now')
 		WHERE {r_regno} = :c_regno;
 		""".format(r=TABLE_REGISTRATIONS, r_exp=REGISTRATION_EXPIRY, 
 		r_regno=REGISTRATION_REGNO)
-		cursor.execute(q_update, {"c_regno" : reg_no})
+		cursor.execute(query, {"c_regno" : reg_no})
 	
 	"""
 	When the transfer can be made, the expiry date of the current 
@@ -337,14 +336,13 @@ def process_BOS():
 	number should be assigned by the system to the new registration. The vin 
 	will be copied from the current registration to the new one.
 	"""
-
 	# create new registration
 	new_regno = find_available_id(TABLE_REGISTRATIONS, REGISTRATION_REGNO)
-	q_insert = """INSERT INTO {r}
+	query = """INSERT INTO {r}
 	VALUES(:new_regno, date('now'), date('now', '1 year'),
 			:plate, :vin, :fname, :lname);
 	""".format(r=TABLE_REGISTRATIONS)
-	cursor.execute(q_insert, {"new_regno" : new_regno, 
+	cursor.execute(query, {"new_regno" : new_regno, 
 		"plate" : plate, "vin" : vin, "fname" : fname, "lname" : lname})
 
 	connection.commit()
@@ -352,14 +350,14 @@ def process_BOS():
 		print("Registration successful!")
 	else:
 		print("Transfer successful!")
+	transition_screen()
 
 
 
 def process_payment():
-	# based on payment's schema, you can't pay more than once a day for single tno
-	# i'm not sure if that was their intention
-	# todo: validate if already paid today (???)
 	"""
+	Note: This does not consider values with decimal points. 
+	Values are truncated to an integer.
 	The user should be able to record a payment by entering a valid
 	ticket number and an amount. The payment date is automatically set to
 	the day of the payment (today's date). A ticket can be paid in
@@ -370,53 +368,64 @@ def process_payment():
 
 	# region validate ticket existence
 	ticket_number = input("Enter a valid ticket number: ")
-	# todo: check if ticket_number is only a number???
 
-	q_ticket_validation = """SELECT {t_fine} FROM {t} WHERE {t_tno} = :c_tno;
+	query = """SELECT {t_fine} FROM {t} WHERE {t_tno} = :c_tno;
 		""".format(t=TABLE_TICKETS, t_fine=TICKETS_FINE, t_tno=TICKETS_TNO)
-	cursor.execute(q_ticket_validation, {"c_tno": ticket_number})
-	r_fine = cursor.fetchone()
+	cursor.execute(query, {"c_tno": ticket_number})
+	result = cursor.fetchone()
 
-	if r_fine is None:
-		# todo: improve warning
-		# there is no such ticket
-		print("No such ticket")
+	if result == None:
+		print("Ticket does not exist in the system.")
+		transition_screen()
 		return
-	else:
-		print("Ticket exists! Yay! Remove this please!!!")
-		fine = r_fine[0]
+		
+	fine = result[0]
+	# endregion
+
+	# region validate if payment was made
+	query = """SELECT * FROM {p} 
+	WHERE {p_tno} = :c_tno AND {p_pdate} = date('now');
+	""".format(p=TABLE_PAYMENTS, p_tno=PAYMENTS_TNO, p_pdate=PAYMENTS_PDATE)
+	cursor.execute(query, {"c_tno" : ticket_number})
+	result = cursor.fetchone()
+
+	if result != None:
+		print("Payment was already made for this ticket today.")
+		transition_screen()
+		return
 	# endregion
 
 	# region validate amount is not over
 	amount_input = input("Enter payment amount: ")
 
 	try:
+		if "." in amount_input:
+			print("Warning: values after a decimal point are ignored")
+			amount_input = amount_input.split(".")[0]
 		amount = int(amount_input)
+		print("Payment amount entered is: {0}".format(amount))
 	except ValueError:
-		# todo improve message
-		print("That's not a number!!!")
+		print("Given amount is not a number.")
+		transition_screen()
 		return
 
 	if amount <= 0:
-		# todo: improve message
-		print("Invalid amount")
+		print("Invalid amount.")
+		transition_screen()
 		return
 
-	q_fine_validation = """SELECT SUM({p_amount})
+	query = """SELECT SUM({p_amount})
 	FROM {p}
 	WHERE {p_tno} = :c_tno;
 	""".format(p=TABLE_PAYMENTS, p_amount=PAYMENTS_AMOUNT, p_tno=PAYMENTS_TNO)
-	cursor.execute(q_fine_validation, {"c_tno": ticket_number})
+	cursor.execute(query, {"c_tno": ticket_number})
+	# sum does not return null so this is okay
 	old_payments = cursor.fetchone()[0]
 
-	if old_payments is not None and (old_payments + amount) > fine:
-		# todo: improve message
-		print("Over paid. Cancelling")
+	if old_payments != None and (old_payments + amount) > fine:
+		print("Over paid. Cancelling payment.")
+		transition_screen()
 		return
-	else:
-		#todo: remove
-		print("Not overpaid")
-
 	# endregion
 
 	# region insert payment
@@ -425,6 +434,7 @@ def process_payment():
 	cursor.execute(q_insert, (ticket_number, amount_input))
 	connection.commit()
 	print("Payment successful")
+	transition_screen()
 	# endregion
 	
 
@@ -440,7 +450,7 @@ def get_driver():
 	first_name = input("Enter a first name: ")
 	last_name = input("Enter a last name: ")
 
-	# Validate that the person in our system
+	# region Validate that the person in our system
 	query = """SELECT * FROM {r}
 	WHERE {r_fname} LIKE :fname AND {r_lname} LIKE :lname;
 	""".format(r=TABLE_REGISTRATIONS, r_fname=REGISTRATION_FNAME, 
@@ -451,8 +461,11 @@ def get_driver():
 	if result == None:
 		print("{0} {1} is not registered in the database.".format(first_name, last_name))
 		print("Unable to get driver abstract.")
+		transition_screen()
 		return
-	
+	# endregion
+
+	# region Get values for the abstract	
 	ticket_count = 0
 	demerit_count = 0
 	latest_points = 0
@@ -467,10 +480,7 @@ def get_driver():
 	result = cursor.fetchone()
 
 	if result != None:
-		print("We got the result: " + str(result[0]))
 		ticket_count = result[0]
-	else:
-		print("We are here!")
 
 	query = """SELECT COUNT(*), SUM({d_points}) FROM {d}
 	WHERE {d_fname} LIKE :fname AND {d_lname} LIKE :lname;
@@ -485,10 +495,10 @@ def get_driver():
 		if lifetime_points == None:
 			lifetime_points = 0
 
-	# todo: decide if < or <=, just think about that later
+	# Uses > for checking the date, excludes dates exactly 2 years earlier than now
 	query = """SELECT SUM({d_points}) FROM {d}
 	WHERE {d_fname} LIKE :fname AND {d_lname} LIKE :lname 
-		AND {d_ddate} >= date('now', '-2 year');
+		AND {d_ddate} > date('now', '-2 year');
 	""".format(d=TABLE_DEMERITS, d_fname=DEMERITS_FNAME, d_lname=DEMERITS_LNAME,
 		d_points=DEMERITS_POINTS, d_ddate=DEMERITS_DDATE)
 	cursor.execute(query, {"fname" : first_name, "lname" : last_name})
@@ -503,6 +513,7 @@ def get_driver():
 		"Demerit points within the past two years: {0}".format(latest_points),
 		"Lifetime demerits points: {0}".format(lifetime_points))
 	display_messages(messages)
+	# endregion
 
 	"""
 	The user should be given the option to see 
@@ -555,24 +566,23 @@ def get_driver():
 			if not (should_see_ticket.lower() == "y"):
 				return
 			print("Ticket details: ")
-		else:
-			row = result[ind]
-			messages = ("-"*20,
-				"Ticket number: {0}".format(row[0]),
-				"-"*20,
-				"Violation date: {0}".format(row[1]),
-				"Violation description: {0}".format(row[2]),
-				"Fine: {0}".format(row[3]),
-				"Registration number: {0}".format(row[4]),
-				"Vehicle make: {0}".format(row[5]),
-				"Vehicle model: {0}".format(row[6]),
-				"-"*20,
-				"")
-			display_messages(messages)
-			ind += 1
+		
+		row = result[ind]
+		messages = ("-"*20,
+			"Ticket number: {0}".format(row[0]),
+			"-"*20,
+			"Violation date: {0}".format(row[1]),
+			"Violation description: {0}".format(row[2]),
+			"Fine: {0}".format(row[3]),
+			"Registration number: {0}".format(row[4]),
+			"Vehicle make: {0}".format(row[5]),
+			"Vehicle model: {0}".format(row[6]),
+			"-"*20,
+			"")
+		display_messages(messages)
+		ind += 1
 	
-	input("Press enter to go back to the menu.")
-	clear_screen()
+	transition_screen()
 
 
 def find_available_id(table, column):
@@ -594,6 +604,10 @@ def find_available_id(table, column):
 		available_id = max_id[0] + 1
 
 	return available_id
+
+def transition_screen():
+	input("Press enter to go back to the menu.")
+	clear_screen()
 
 def clear_screen():
 	os.system('cls' if os.name=='nt' else 'clear')
