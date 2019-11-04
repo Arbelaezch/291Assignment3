@@ -249,6 +249,7 @@ def process_BOS():
 	"""
 	global connection, cursor
 
+	new_screen("Processing a bill of sale")
 	vin = input("Enter vin: ")
 	current_owner = input("Enter current owner name: ")
 	new_owner = input("Enter new owner name: ")
@@ -295,12 +296,12 @@ def process_BOS():
 		transition_screen()
 		return
 	
+	vin = result[0]
 	is_car_new = result[1] == None
 
 	if is_car_new:
 		print("Car with vin {0} has no owner yet.".format(vin))
 	else:
-		vin = result[1]
 		query = """SELECT {r_regno}, {r_fname} || " " || {r_lname}
 			FROM {r}
 			WHERE {r_vin} LIKE :c_vin
@@ -365,6 +366,7 @@ def process_payment():
 	fine amount of the ticket.
 	"""
 	global connection, cursor
+	new_screen("Processing a payment")
 
 	# region validate ticket existence
 	ticket_number = input("Enter a valid ticket number: ")
@@ -419,8 +421,10 @@ def process_payment():
 	WHERE {p_tno} = :c_tno;
 	""".format(p=TABLE_PAYMENTS, p_amount=PAYMENTS_AMOUNT, p_tno=PAYMENTS_TNO)
 	cursor.execute(query, {"c_tno": ticket_number})
-	# sum does not return null so this is okay
+	
 	old_payments = cursor.fetchone()[0]
+	if old_payments == None:
+		old_payments = 0
 
 	if old_payments != None and (old_payments + amount) > fine:
 		print("Over paid. Cancelling payment.")
@@ -446,7 +450,8 @@ def get_driver():
 	both within the past two years and within the lifetime.
 	"""
 	global connection, cursor
-	clear_screen()
+	new_screen("Driver abstract")
+
 	first_name = input("Enter a first name: ")
 	last_name = input("Enter a last name: ")
 
@@ -515,6 +520,10 @@ def get_driver():
 	display_messages(messages)
 	# endregion
 
+	if ticket_count == 0:
+		transition_screen()
+		return
+
 	"""
 	The user should be given the option to see 
 	the tickets ordered from the latest to the oldest. 
@@ -551,6 +560,7 @@ def get_driver():
 	result = cursor.fetchall()
 	
 	if result == None:
+		# this should never happen but it's here for safety
 		print("{0} {1} has no tickets in the record".format(first_name, last_name))
 		return
 
@@ -568,16 +578,16 @@ def get_driver():
 			print("Ticket details: ")
 		
 		row = result[ind]
-		messages = ("-"*20,
+		messages = ("-"*30,
 			"Ticket number: {0}".format(row[0]),
-			"-"*20,
+			"-"*30,
 			"Violation date: {0}".format(row[1]),
 			"Violation description: {0}".format(row[2]),
 			"Fine: {0}".format(row[3]),
 			"Registration number: {0}".format(row[4]),
 			"Vehicle make: {0}".format(row[5]),
 			"Vehicle model: {0}".format(row[6]),
-			"-"*20,
+			"-"*30,
 			"")
 		display_messages(messages)
 		ind += 1
@@ -604,6 +614,14 @@ def find_available_id(table, column):
 		available_id = max_id[0] + 1
 
 	return available_id
+
+def new_screen(title):
+	screen_len = 30
+
+	clear_screen()
+	print("-"*screen_len)
+	print(title)
+	print("-"*screen_len)
 
 def transition_screen():
 	input("Press enter to go back to the menu.")
